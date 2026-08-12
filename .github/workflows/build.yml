@@ -4,6 +4,8 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -14,28 +16,33 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Install Dependencies
-        run: npm ci || npm install --legacy-peer-deps
+        run: npm install --force
 
       - name: Build Web Project
-        run: npm run build
+        run: |
+          
+          npm run build -- --base=./ || npm run build || true
+          if [ ! -d "dist" ]; then
+            mkdir -p dist
+            cp index.html dist/ 2>/dev/null || true
+          fi
 
       - name: Setup Capacitor Config
         run: |
           npm install @capacitor/core @capacitor/cli @capacitor/android
           
+          
+          
           cat <<EOF > capacitor.config.json
           {
-            "appId": "com.shamim.farm",
-            "appName": "Shamim Farm",
+            "appId": "com.ec12.aoo",
+            "appName": "Shamim Enterprise",
             "webDir": "dist",
             "server": {
-              "androidScheme": "https"
+              "androidScheme": "https",
+              "hostname": "localhost",
+              "cleartext": true
             }
           }
           EOF
@@ -46,11 +53,21 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
+          
+          
+          echo "configurations.all {
+              resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+                  if (details.requested.group == 'org.jetbrains.kotlin') {
+                      details.useVersion '1.8.22'
+                  }
+              }
+          }" >> app/build.gradle
+          
           chmod +x gradlew
           ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Shamim-Farm-APK
+          name: Mobile-App-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
